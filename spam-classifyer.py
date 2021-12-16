@@ -1,3 +1,4 @@
+from columnar import columnar
 from time import time
 import pandas as pd
 import numpy as np
@@ -21,10 +22,15 @@ def main():
 
     #scaler = StandardScaler()
     #dataX = scaler.fit_transform(dataX)
+
     models = []
     models.append(svm.SVC())
     models.append(GaussianNB())
     models.append(RandomForestClassifier())
+
+    modelAccuracies = []
+    modelF1Scores = []
+    modelTrainingTimes = []
 
     curFold = 1
 
@@ -32,11 +38,24 @@ def main():
     for trainIndex, testIndex in stratKFold.split(dataX, dataY):
         trainFold = dataset.iloc[trainIndex, :]
         testFold = dataset.iloc[testIndex, :]
-        print("-------- Fold: " + str(curFold) + " --------")
+        # print("-------- Fold: " + str(curFold) + " --------")
+        curModelAccuracies = []
+        curModelF1Scores = []
+        curModelTrainingTimes = []
         for model in range(len(models)):
-            trainModel(models[model], trainFold, testFold, curFold)
+            accuracy, f1Score, trainingTime = trainModel(models[model], trainFold, testFold, curFold)
+            curModelAccuracies.append(accuracy)
+            curModelF1Scores.append(f1Score)
+            curModelTrainingTimes.append(trainingTime)
         
+        modelAccuracies.append(np.array(curModelAccuracies))
+        modelF1Scores.append(np.array(curModelF1Scores))
+        modelTrainingTimes.append(np.array(curModelTrainingTimes))
         curFold += 1
+    
+    printResults(modelAccuracies, models, "ACCURACY", False)
+    printResults(modelF1Scores, models, "F1 SCORE", False)
+    printResults(modelTrainingTimes, models, "TRAINING TIME", True)
 
 
 def trainModel(model, trainFold, testFold, foldNum):
@@ -52,11 +71,50 @@ def trainModel(model, trainFold, testFold, foldNum):
     predY = model.predict(testX)
     accuracyScore = accuracy_score(testY, predY)
     f1Score = f1_score(testY, predY)
-    print("-------- " + type(model).__name__ + " --------")
-    print("Accuracy score: " + str(accuracyScore))
-    print("F1 score: " + str(f1Score))
-    print("Training time: " + str(trainingTime))
-    print("--------------------------------------------")
+    return accuracyScore, f1Score, trainingTime
+
+def printResults(data, models, statType, ascOrder):
+    headers = ["Fold"]
+    dataRows = []
+
+    for model in range(len(models)):
+        headers.append(type(models[model]).__name__)
+
+    for dataPoints in range (len(data)):
+        dataRow = [str(dataPoints + 1)]
+        #dataRanks = np.argsort(data[dataPoints])
+        dataRanks = pd.DataFrame(data[dataPoints])
+        dataRanks = dataRanks.rank(ascending=ascOrder)
+        dataRanks = dataRanks.to_numpy()
+        #print(ranks.rank(ascending=ascOrder))
+
+        # if (ascOrder):
+        #     dataRanks = dataRanks[::-1][:len(dataRanks)]
+
+        for dataPoint in range(len(data[dataPoints])):
+            curValue = format(round(data[dataPoints][dataPoint], 4), '.4f')
+            tempRow = str(curValue) + " (" + str(int(dataRanks[dataPoint])) + ")"
+            dataRow.append(tempRow)
+        dataRows.append(dataRow)
+
+    tempRow = ["MEAN: "]
+    for dataPoints in range(len(data[0])):
+        tempValues = []
+        for dataPoint in range(len(data)):
+            tempValues.append(data[dataPoint][dataPoints])
+        meanVal = sum(tempValues) / len(tempValues)
+        tempRow.append(format(round(meanVal, 4), '.4f'))
+    
+    dataRows.append(tempRow)
+
+
+
+    table = columnar(dataRows, headers)
+    print("Stratified ten-fold cross validation (" + statType + ")")
+    print(table)
+
+    
+
 
 if __name__ == "__main__":
     main()
