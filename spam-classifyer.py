@@ -7,6 +7,7 @@ import math
 from scipy.sparse import data
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import KBinsDiscretizer
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -14,10 +15,10 @@ from sklearn.metrics import f1_score, accuracy_score
 
 def main():
     # Reading dataset into Pandas DataFrame
-    dataset = pd.read_csv("./data/spambase.data", header=None)
+    dataset = pd.read_csv("./data/spambase.data", sep=",", header=None)
 
     # Declaring an instance class for stratified 10-fold cross validation 
-    stratKFold = StratifiedKFold(n_splits=10)
+    stratKFold = StratifiedKFold(n_splits=10, shuffle=False, random_state=None)
 
     # Splitting data into X (features) and Y (spam/ham label) values
     dataX = dataset[dataset.columns[0:57]]
@@ -30,6 +31,9 @@ def main():
     models.append(svm.SVC())
     models.append(GaussianNB())
     models.append(RandomForestClassifier())
+
+    # Initializing binning discretizer (ordinal, equal-width binning with 100 bins)
+    discretizer = KBinsDiscretizer(n_bins=100, encode="ordinal", strategy="uniform")
 
     # Initializing arrays for storing model metrics
     modelAccuracies = []
@@ -49,7 +53,7 @@ def main():
 
         for model in range(len(models)):
             # Training models and calculating performance metrics
-            accuracy, f1Score, trainingTime = trainModel(models[model], trainFold, testFold)
+            accuracy, f1Score, trainingTime = trainModel(models[model], discretizer, trainFold, testFold)
             curModelAccuracies.append(accuracy)
             curModelF1Scores.append(f1Score)
             curModelTrainingTimes.append(trainingTime)
@@ -65,26 +69,30 @@ def main():
     printResults(modelTrainingTimes, models, "TRAINING TIME", True)
 
 
-def trainModel(model, trainFold, testFold):
+def trainModel(model, transformer, trainFold, testFold):
     # Splitting training data into X, Y
     trainX = trainFold[trainFold.columns[0:57]]
     trainY = trainFold[57]
 
-    #Splitting test data into X, Y
+    # Splitting test data into X, Y
     testX = testFold[testFold.columns[0:57]]
     testY = testFold[57]
+
+    # Discretizing training and test data
+    trainX_disc = transformer.fit_transform(trainX)
+    testX_disc = transformer.transform(testX)
 
     # Exctracting timer before starting model fitting
     trainingTime = time()
 
     # Fitting model to training data 
-    model.fit(trainX, trainY)
+    model.fit(trainX_disc, trainY)
 
     # Calculating training time for model
     trainingTime = time() - trainingTime
 
     # Performing a prediction based on test data
-    predY = model.predict(testX)
+    predY = model.predict(testX_disc)
 
     # Calculating accuracy score based on prediction and correct labels
     accuracyScore = accuracy_score(testY, predY)
@@ -161,24 +169,30 @@ def friedmanTest(models, data, allRanks, meanRanks):
     avgRank = (len(models) + 1) / 2
     sqDifMeans = 0
     sqDifRanks = 0
-
+    
+    # Calculating the square difference between average rank per model and overall average rank
     for model in range(len(models)):
         sqDifMeans += pow((meanRanks[model] - avgRank), 2)
     sqDifMeans = sqDifMeans * len(data)
 
+    # Calculating square differences for the rank in each fold for every model (compared to overall average rank)
     for model in range(len(models)):
         for rank in range(len(allRanks)):
             sqDifRanks += pow((allRanks[rank][model] - avgRank), 2)
     
     sqDifRanks = sqDifRanks * (1 / (len(data)*(len(models) - 1)))
+
+    # Calculating final Friedman score
     friedmanScore = float(sqDifMeans * sqDifRanks)
+
+    # Printing results and checking if to move on to the Nemenyi post-hoc test
     print("--------------------------------------------------------------------------------------------------------------")
     if (friedmanScore > criticalValue):
-        print("Friedman score of " + str(friedmanScore) + " is greater than critical value " + str(criticalValue) + ", null hypothesis rejected.")
+        print("Friedman score of " + str(format(round(friedmanScore, 3), '.3f')) + " is greater than critical value " + str(format(criticalValue, '.3f')) + ", null hypothesis rejected.")
         print("--------------------------------------------------------------------------------------------------------------")
         nemenyiTest(models, data, meanRanks)
     else:
-        print("Friedman score of " + str(friedmanScore) + " is less than critical value " + str(criticalValue) + ", null hypothesis could not be rejected (i.e. algorithms performed equally well).")
+        print("Friedman score of " + str(format(round(friedmanScore, 3), '.3f')) + " is less than critical value " + str(format(criticalValue, '.3f')) + ", null hypothesis could not be rejected (i.e. algorithms performed equally well).")
         print("--------------------------------------------------------------------------------------------------------------")
         
 def nemenyiTest(models, data, meanRanks):
