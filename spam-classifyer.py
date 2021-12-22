@@ -1,12 +1,9 @@
 from columnar import columnar
 from time import time
-from numpy.lib.function_base import diff
 import pandas as pd
 import numpy as np
 import math
-from scipy.sparse import data
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import KBinsDiscretizer
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
@@ -186,14 +183,14 @@ def friedmanTest(models, data, allRanks, meanRanks):
     friedmanScore = float(sqDifMeans * sqDifRanks)
 
     # Printing results and checking if to move on to the Nemenyi post-hoc test
-    print("--------------------------------------------------------------------------------------------------------------")
+    print("------------------------------------------------------------------------------------------------------------------------")
     if (friedmanScore > criticalValue):
         print("Friedman score of " + str(format(round(friedmanScore, 3), '.3f')) + " is greater than critical value " + str(format(criticalValue, '.3f')) + ", null hypothesis rejected.")
-        print("--------------------------------------------------------------------------------------------------------------")
+        print("------------------------------------------------------------------------------------------------------------------------")
         nemenyiTest(models, data, meanRanks)
     else:
         print("Friedman score of " + str(format(round(friedmanScore, 3), '.3f')) + " is less than critical value " + str(format(criticalValue, '.3f')) + ", null hypothesis could not be rejected (i.e. algorithms performed equally well).")
-        print("--------------------------------------------------------------------------------------------------------------")
+        print("------------------------------------------------------------------------------------------------------------------------")
         
 def nemenyiTest(models, data, meanRanks):
     # Q-alpha value for alpha at significance level 0.05, k = 3
@@ -202,7 +199,7 @@ def nemenyiTest(models, data, meanRanks):
     # Calculating critical difference threshold value
     criticalDifference = qAlpha * math.sqrt((len(models)*(len(models)+1))/(6*len(data)))
     print("Performing Nemenyi post-hoc test at significance level 0.05, critical difference threshold: " + str(format(round(criticalDifference, 4), '.3f')) + ".")
-    print("--------------------------------------------------------------------------------------------------------------")
+    print("------------------------------------------------------------------------------------------------------------------------")
 
     differences = []
     modelNames = []
@@ -223,14 +220,14 @@ def nemenyiTest(models, data, meanRanks):
     # Printing results from Nemenyi test
     for result in range(len(differences)):
         if differences[result][0] >= criticalDifference:
-            print("There is a significant difference in performance between models " + modelNames[result][0] + ", " + modelNames[result][1] + " (" + str(format(round(differences[result][0], 1), '.1f')) + ").")
+            print("There is a statistically significant difference in performance between models " + modelNames[result][0] + ", " + modelNames[result][1] + " (" + str(format(round(differences[result][0], 1), '.1f')) + ").")
             if differences[result][1] > differences[result][2]:
                 print("The " + modelNames[result][1] + " model performed better." )
             else:
                 print("The " + modelNames[result][0] + " model performed better." )
         else:
-            print("There is not a significant difference in performance between models " + modelNames[result][0] + ", " + modelNames[result][1] + " (" + str(format(round(differences[result][0], 1), '.1f')) + ").")
-        print("--------------------------------------------------------------------------------------------------------------")
+            print("There is not a statistically significant difference in performance between models " + modelNames[result][0] + ", " + modelNames[result][1] + " (" + str(format(round(differences[result][0], 1), '.1f')) + ").")
+        print("------------------------------------------------------------------------------------------------------------------------")
         
         
         
